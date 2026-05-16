@@ -13,24 +13,32 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET'
     return response
 
+@app.route('/')
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "Nvn Network API is working perfectly!",
+        "endpoint": "/live"
+    })
+
 @app.route('/live')
 def get_live_bets():
     try:
         category = request.args.get('type', 'football').lower()
         
-        # اختيار المفتاح الرياضي المناسب بناءً على القسم الخاص بالمستخدم
-        sport_key = "soccer"  # جلب عام لكل مباريات كرة القدم المتاحة حالياً لضمان عدم الفراغ
+        # اختيار المفتاح الرياضي المناسب بناءً على القسم المشغل
+        sport_key = "soccer"  
         if category == "basketball": sport_key = "basketball"
         if category == "tennis": sport_key = "tennis"
         
-        # الرابط الشامل والآمن لجلب الأودات الحية المتوفرة في العالم
+        # الرابط الشامل لبيانات الرهانات الحية والمحدثة
         url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={API_KEY}&regions=eu&markets=h2h"
         
         response = requests.get(url, timeout=12)
         
-        # التأكد من نجاح استجابة السيرفر وتفادي أخطاء جلب البيانات
+        # تفادي أخطاء السيرفر الخارجي
         if response.status_code != 200:
-            return jsonify({"status": "success", "category": category, "count": 0, "results": [], "note": "API quota or limit reached"})
+            return jsonify({"status": "success", "category": category, "count": 0, "results": [], "note": "API limit or key issue"})
             
         json_data = response.json()
         results = []
@@ -41,7 +49,6 @@ def get_live_bets():
                 team2 = game.get("away_team", "").strip()
                 bookmakers = game.get("bookmakers", [])
                 
-                # فحص صارم للتأكد من وجود الفرق والمنصات قبل القراءة البرمجية
                 if not team1 or not team2 or not isinstance(bookmakers, list) or len(bookmakers) == 0:
                     continue
                     
@@ -54,7 +61,6 @@ def get_live_bets():
                     continue
                     
                 try:
-                    # استخراج قيم الرهانات الحية بأمان مطلق وبدون حساسية من الفراغات
                     o1 = outcomes[0].get("price", 0)
                     o2 = outcomes[1].get("price", 0)
                     
@@ -64,7 +70,7 @@ def get_live_bets():
                     prediction = "W1" if o1 < o2 else "W2"
                     min_odd = min(o1, o2)
                     
-                    # حساب النسبة المئوية الذكية للمباراة
+                    # حساب نسبة التوقع الذكي
                     prob = int(100 - (min_odd * 15))
                     prob = max(60, min(prob, 92))
                     
@@ -81,5 +87,5 @@ def get_live_bets():
         return jsonify({"status": "success", "category": category, "count": len(results), "results": results})
         
     except Exception as e:
-        # نظام حماية ذاتي: في حال وقوع أي خطأ مفاجئ يظل السيرفر حياً ويرسل استجابة نظيفة بدلاً من الانهيار
+        # نظام الحماية الذاتي لمنع خطأ 500 نهائياً
         return jsonify({"status": "success", "category": category, "count": 0, "results": [], "error_log": str(e)})
